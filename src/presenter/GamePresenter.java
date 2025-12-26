@@ -101,16 +101,28 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     // --- GAME START LOGIC ---
     @Override
     public void startGame(String username) {
-        // Set Username
+        // 1. Validasi Username
         if (username == null || username.trim().isEmpty()) {
-            this.currentUsername = "Unknown";
+            this.currentUsername = "Player";
         } else {
             this.currentUsername = username;
         }
 
-        // Reset State
+        // 2. PERBAIKAN UTAMA: Daftarkan user ke database SEBELUM game mulai
+        if (tabelBenefit != null) {
+            tabelBenefit.registerPlayer(this.currentUsername);
+
+            // 3. Refresh tabel skor di Menu agar user melihat namanya muncul di list
+            loadData();
+        }
+
         player = new Player(WIDTH / 2.0, HEIGHT / 2.0);
-        player.setAmmo(0);
+
+        int savedAmmo = 0;
+        if (tabelBenefit != null) {
+            savedAmmo = tabelBenefit.getAmmoByUsername(currentUsername);
+        }
+        player.setAmmo(savedAmmo);
         aliens.clear();
         bullets.clear();
         obstacles.clear();
@@ -120,7 +132,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
         generateLevel();
 
-        // Start Loop
+        // 5. Mulai Thread
         isRunning = true;
         gameThread = new Thread(this);
         gameThread.start();

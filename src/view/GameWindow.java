@@ -145,9 +145,9 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
     private void initSounds() {
         soundManager = new SoundManager();
         // Load sounds (Uncommented and ready)
-        soundManager.loadSound("BGM", "assets/bgm.wav");
-        soundManager.loadSound("SHOOT", "assets/shoot.wav");
-        soundManager.loadSound("SHOOT_ENEMY", "assets/shoot.wav"); // Re-using shoot.wav, can be changed
+//        soundManager.loadSound("BGM", "assets/bgm.wav");
+//        soundManager.loadSound("SHOOT", "assets/shoot.wav");
+//        soundManager.loadSound("SHOOT_ENEMY", "assets/shoot.wav");
         // soundManager.loadSound("EXPLOSION", "assets/explosion.wav");
         // soundManager.loadSound("GAMEOVER", "assets/gameover.wav");
     }
@@ -173,12 +173,13 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
 
     @Override
     public void showMenu() {
-        // Switch view to MENU
         cardLayout.show(cardPanel, "MENU");
-        // Request fresh data for the table
-        if (presenter != null) {
-            presenter.loadData();
-        }
+
+        SwingUtilities.invokeLater(() -> {
+            if (presenter != null) {
+                presenter.loadData();
+            }
+        });
     }
 
     @Override

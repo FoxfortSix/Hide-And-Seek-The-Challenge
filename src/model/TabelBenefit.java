@@ -1,6 +1,8 @@
 package model;
 
 import java.sql.SQLException;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Filename  : TabelBenefit.java
@@ -40,6 +42,75 @@ public class TabelBenefit extends DB {
         }
     }
 
+    public void registerPlayer(String username) {
+        try {
+            // 1. Cek apakah user sudah ada
+            String checkQuery = "SELECT * FROM tbenefit WHERE username = '" + username + "'";
+            createQuery(checkQuery);
+
+            if (!getResult().next()) {
+                // 2. Jika TIDAK ADA, Insert data baru dengan nilai 0
+                // Penting: Tutup result set sebelumnya sebelum query baru
+                closeResult();
+
+                String insertQuery = "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
+                        "'" + username + "', 0, 0, 0)";
+                createUpdate(insertQuery);
+                System.out.println("New player registered: " + username);
+            } else {
+                // Jika sudah ada, tutup result set saja
+                closeResult();
+                System.out.println("Welcome back, " + username);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to register player: " + e.toString());
+        }
+    }
+
+    public Object[][] getAllData() {
+        List<Object[]> list = new ArrayList<>();
+        try {
+            String query = "SELECT * FROM tbenefit ORDER BY skor DESC";
+            createQuery(query);
+
+            while (rs.next()) {
+                list.add(new Object[]{
+                        rs.getString("username"),
+                        rs.getInt("skor"),
+                        rs.getInt("peluru_meleset"),
+                        rs.getInt("sisa_peluru")
+                });
+            }
+
+            closeResult();
+        } catch (Exception e) {
+            System.err.println("Load data failed: " + e);
+        }
+
+        Object[][] data = new Object[list.size()][4];
+        for (int i = 0; i < list.size(); i++) {
+            data[i] = list.get(i);
+        }
+        return data;
+    }
+
+    public int getAmmoByUsername(String username) {
+        int ammo = 0;
+        try {
+            String query = "SELECT sisa_peluru FROM tbenefit WHERE username = '" + username + "'";
+            createQuery(query);
+
+            if (rs.next()) {
+                ammo = rs.getInt("sisa_peluru");
+            }
+
+            closeResult();
+        } catch (Exception e) {
+            System.err.println("Failed to get ammo: " + e);
+        }
+        return ammo;
+    }
+
     /**
      * Method: saveGameData
      * Saves the latest game progress to the database.
@@ -54,36 +125,26 @@ public class TabelBenefit extends DB {
      */
     public void saveGameData(String username, int scoreGained, int missedGained, int currentBullets) {
         try {
-            // 1. Check if user exists
             String checkQuery = "SELECT * FROM tbenefit WHERE username = '" + username + "'";
             createQuery(checkQuery);
 
             if (getResult().next()) {
-                // 2. Data found -> UPDATE
-                // Score and Missed Bullets are CUMULATIVE (added to existing)
-                // Ammo is REPLACED (updated to current state)
+                // UPDATE (Menambahkan skor ke yang sudah ada)
                 String updateQuery = "UPDATE tbenefit SET " +
                         "skor = skor + " + scoreGained + ", " +
                         "peluru_meleset = peluru_meleset + " + missedGained + ", " +
                         "sisa_peluru = " + currentBullets + " " +
                         "WHERE username = '" + username + "'";
 
-                // Important: Close the checkQuery ResultSet before executing update
                 closeResult();
                 createUpdate(updateQuery);
-                System.out.println("Data successfully updated for: " + username);
-
+                System.out.println("Data updated for: " + username);
             } else {
-                // 3. Data not found -> INSERT
-                String insertQuery = "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
-                        "'" + username + "', " +
-                        scoreGained + ", " +
-                        missedGained + ", " +
-                        currentBullets + ")";
-
+                // Fallback jika entah kenapa data belum ada (misal error saat register)
                 closeResult();
+                String insertQuery = "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
+                        "'" + username + "', " + scoreGained + ", " + missedGained + ", " + currentBullets + ")";
                 createUpdate(insertQuery);
-                System.out.println("New user created: " + username);
             }
         } catch (Exception e) {
             System.err.println("Failed to save game data: " + e.toString());
