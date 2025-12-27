@@ -1,101 +1,61 @@
 package model;
 
 /**
- * Filename  : Alien.java
- * Package   : model
- * Description:
- * Represents the enemy character.
- * Supports omni-directional movement (360 degrees) via velocity vectors.
- * Includes shooting cooldown logic.
- *
- * Programmer: MochammadAzkaBasria
- * Date      : 2025-12-24
+ * Filename: Alien.java
+ * Updated: Added Loadout capability (Shotgun, Rifle)
  */
 public class Alien extends GameObject {
 
-    /**
-     * Enum defining the behavior type of the Alien.
-     * CHASER: Moves directly towards the player.
-     * ZIGZAG: Moves diagonally or erratically.
-     */
     public enum Type {
         CHASER,
         ZIGZAG
     }
 
+    // --- TAMBAHAN BARU: LOADOUT ---
+    public enum Loadout {
+        DEFAULT,        // Pistol biasa (1 peluru)
+        ASSAULT_RIFLE,  // Tembakan cepat, cooldown rendah
+        SHOTGUN         // 3 Peluru menyebar, cooldown lama
+    }
+
     private Type type;
+    private Loadout loadout; // Senjata yang dibawa
 
-    // Velocity vectors for 360-degree movement
-    private double velX;
-    private double velY;
-
-    // Timestamp of the last shot fired to manage attack speed (cooldown)
+    private double velX, velY;
     private long lastShotTime;
+    private boolean isBursting = false;
+    private int burstShotsFired = 0;
+    private long lastBurstTime = 0;
 
-    /**
-     * Constructor: Alien
-     * Spawns an alien at the specified coordinates with a fixed size (30x30).
-     * * @param x Initial X coordinate.
-     * @param y Initial Y coordinate.
-     * @param type The behavior type of the alien.
-     */
-    public Alien(double x, double y, Type type) {
+    // Update Constructor untuk menerima Loadout (Opsional, atau set default)
+    public Alien(double x, double y, Type type, Loadout loadout) {
         super(x, y, 30, 30);
         this.type = type;
+        this.loadout = loadout;
         this.lastShotTime = System.currentTimeMillis();
     }
 
     // --- GETTERS & SETTERS ---
+    public Type getType() { return type; }
 
-    /**
-     * @return The behavior type of the alien.
-     */
-    public Type getType() {
-        return type;
-    }
+    public Loadout getLoadout() { return loadout; }
+    public void setLoadout(Loadout loadout) { this.loadout = loadout; }
 
-    /**
-     * @return Velocity on the X-axis.
-     */
-    public double getVelX() {
-        return velX;
-    }
+    public double getVelX() { return velX; }
+    public void setVelX(double velX) { this.velX = velX; }
 
-    /**
-     * Sets velocity on the X-axis.
-     * @param velX Velocity value.
-     */
-    public void setVelX(double velX) {
-        this.velX = velX;
-    }
+    public double getVelY() { return velY; }
+    public void setVelY(double velY) { this.velY = velY; }
 
-    /**
-     * @return Velocity on the Y-axis.
-     */
-    public double getVelY() {
-        return velY;
-    }
+    public long getLastShotTime() { return lastShotTime; }
+    public void setLastShotTime(long lastShotTime) { this.lastShotTime = lastShotTime; }
 
-    /**
-     * Sets velocity on the Y-axis.
-     * @param velY Velocity value.
-     */
-    public void setVelY(double velY) {
-        this.velY = velY;
-    }
+    public boolean isBursting() { return isBursting; }
+    public void setBursting(boolean bursting) { isBursting = bursting; }
 
-    /**
-     * @return Timestamp (ms) of the last shot fired.
-     */
-    public long getLastShotTime() {
-        return lastShotTime;
-    }
+    public int getBurstShotsFired() { return burstShotsFired; }
+    public void setBurstShotsFired(int count) { this.burstShotsFired = count; }
 
-    /**
-     * Updates the timestamp of the last shot.
-     * @param time Current system time in milliseconds.
-     */
-    public void setLastShotTime(long time) {
-        this.lastShotTime = time;
-    }
+    public long getLastBurstTime() { return lastBurstTime; }
+    public void setLastBurstTime(long time) { this.lastBurstTime = time; }
 }

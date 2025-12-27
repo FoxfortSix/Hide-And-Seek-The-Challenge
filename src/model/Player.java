@@ -1,90 +1,104 @@
 package model;
 
 /**
- * Filename  : Player.java
- * Package   : model
- * Description:
- * Represents the player character.
- * Stores specific attributes like rotation angle (for aiming), movement speed,
- * current score, and available ammo.
- *
- * Programmer: MochammadAzkaBasria
- * Date      : 2025-12-24
+ * Filename: Player.java
+ * Updated: Added Weapon System (AR/Shotgun) with Timer.
  */
 public class Player extends GameObject {
 
-    // Angle in radians, used to render the player facing the mouse cursor
+    public enum WeaponType {
+        DEFAULT,        // Pistol Biasa
+        ASSAULT_RIFLE,  // Rapid Fire (Spray)
+        SHOTGUN         // Spread Fire
+    }
+
+    // Properti Player
+    private double speed = 3.5;
+    private int score = 0;
+    private int ammo = 0; // Ammo awal
     private double rotation;
 
-    // Movement speed
-    private double speed = 3.0;
+    // --- VARIABEL UNTUK FITUR SENJATA ---
+    private WeaponType currentWeapon = WeaponType.DEFAULT;
+    private long weaponPowerUpEndTime = 0; // Waktu kapan senjata spesial habis
 
-    // Game Status
-    private int score = 0;
-    private int ammo = 0; // Starts with 0 ammo as per requirements
-
-    /**
-     * Constructor: Player
-     * Spawns the player at the specified coordinates with a fixed size (30x30).
-     * * @param startX Initial X coordinate.
-     * @param startY Initial Y coordinate.
-     */
-    public Player(double startX, double startY) {
-        super(startX, startY, 30, 30);
-        this.rotation = 0;
+    public Player(double x, double y) {
+        super(x, y, 30, 30); // Ukuran player 30x30
     }
 
-    // --- GETTERS & SETTERS ---
+    // --- LOGIKA POWER UP (Baru) ---
 
     /**
-     * @return The rotation angle in radians.
+     * Mengubah senjata player untuk durasi tertentu.
+     * @param type Tipe senjata (ASSAULT_RIFLE / SHOTGUN)
+     * @param durationSeconds Durasi dalam detik (misal 30)
      */
-    public double getRotation() {
-        return rotation;
+    public void setWeapon(WeaponType type, int durationSeconds) {
+        this.currentWeapon = type;
+        // Set waktu habis: Waktu sekarang + durasi (dalam milidetik)
+        this.weaponPowerUpEndTime = System.currentTimeMillis() + (durationSeconds * 1000L);
     }
 
     /**
-     * Sets the player's facing angle.
-     * @param rotation Angle in radians.
+     * Dipanggil di GameLoop untuk mengecek apakah durasi senjata sudah habis.
+     * Jika habis, senjata kembali ke DEFAULT.
      */
-    public void setRotation(double rotation) {
-        this.rotation = rotation;
+    public void checkWeaponTimer() {
+        if (currentWeapon != WeaponType.DEFAULT) {
+            if (System.currentTimeMillis() > weaponPowerUpEndTime) {
+                currentWeapon = WeaponType.DEFAULT; // Reset ke pistol biasa
+            }
+        }
     }
 
     /**
-     * @return The movement speed of the player.
+     * Mendapatkan sisa waktu senjata spesial dalam detik.
+     * Berguna untuk menampilkan timer di layar (HUD).
      */
+    public int getWeaponTimeLeft() {
+        if (currentWeapon == WeaponType.DEFAULT) return 0;
+
+        long timeLeftMillis = weaponPowerUpEndTime - System.currentTimeMillis();
+        if (timeLeftMillis < 0) return 0;
+
+        return (int) (timeLeftMillis / 1000); // Konversi ke detik
+    }
+
+    public WeaponType getCurrentWeapon() {
+        return currentWeapon;
+    }
+
+    // --- GETTER & SETTER STANDAR ---
+
     public double getSpeed() {
         return speed;
     }
 
-    /**
-     * @return Current accumulated score.
-     */
+    public void setSpeed(double speed) {
+        this.speed = speed;
+    }
+
     public int getScore() {
         return score;
     }
 
-    /**
-     * Updates the score.
-     * @param score New score value.
-     */
     public void setScore(int score) {
         this.score = score;
     }
 
-    /**
-     * @return Current ammunition count.
-     */
     public int getAmmo() {
         return ammo;
     }
 
-    /**
-     * Updates the ammo count.
-     * @param ammo New ammo value.
-     */
     public void setAmmo(int ammo) {
         this.ammo = ammo;
+    }
+
+    public double getRotation() {
+        return rotation;
+    }
+
+    public void setRotation(double rotation) {
+        this.rotation = rotation;
     }
 }

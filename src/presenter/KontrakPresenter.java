@@ -67,4 +67,6 @@ public interface KontrakPresenter {
      * @return Current ammo count.
      */
     int getAmmo();
+
+    int getWave();
 }

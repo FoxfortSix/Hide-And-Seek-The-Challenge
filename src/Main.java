@@ -9,7 +9,7 @@ import javax.swing.SwingUtilities;
  * Filename  : Main.java
  * Description:
  * The entry point of the application.
- * Responsible for assembling the MVP components:
+ * Responsible for assembling the MVP components:dd
  * 1. Creates the View.
  * 2. Creates the Presenter and injects the View into it.
  * 3. Injects the Presenter into the View (for handling inputs).
