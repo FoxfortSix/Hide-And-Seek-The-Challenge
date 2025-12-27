@@ -122,29 +122,36 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
 
     private void initSounds() {
         soundManager = new SoundManager();
-        // soundManager.loadSound("BGM", "assets/bgm.wav");
+        soundManager.loadSound("BGM", "assets/bgm.wav");
+        soundManager.loadSound("SHOOT", "assets/shoot.wav");
+        soundManager.loadSound("SHOOT_ENEMY", "assets/enemyshoot.wav");
     }
 
     private void initImages() {
         imageManager = new ImageManager();
 
-        // 1. BACKGROUND -> Tile.png
+        // 1. BG & ENV
         imageManager.loadImage("BG", "assets/img/Tile.png");
-
-        // 2. OBSTACLE -> Box.png (PERUBAHAN DI SINI)
         imageManager.loadImage("OBSTACLE", "assets/img/Box.png");
 
-        // Catatan: PowerUp tidak diload gambarnya karena kita akan pakai kotak warna manual.
-
-        // 3. Player Skins
+        // 2. PLAYER
         imageManager.loadImage("PLAYER_DEFAULT", "assets/img/PlayerHandgun.png");
         imageManager.loadImage("PLAYER_AR", "assets/img/PlayerAR.png");
         imageManager.loadImage("PLAYER_SHOTGUN", "assets/img/PlayerShotgun.png");
 
-        // 4. Enemy Skins
+        // 3. ENEMY
         imageManager.loadImage("ALIEN_DEFAULT", "assets/img/EnemyHandgun.png");
         imageManager.loadImage("ALIEN_AR", "assets/img/EnemyAR.png");
         imageManager.loadImage("ALIEN_SHOTGUN", "assets/img/EnemyShotgun.png");
+
+        // 4. BULLETS (NEW ASSETS)
+        imageManager.loadImage("BULLET_PLAYER_PISTOL", "assets/img/PlayerPistolBullet.png");
+        imageManager.loadImage("BULLET_PLAYER_AR", "assets/img/PlayerARBullet.png");
+        imageManager.loadImage("BULLET_PLAYER_SHOTGUN", "assets/img/PlayerShotgunBullet.png");
+
+        imageManager.loadImage("BULLET_ENEMY_PISTOL", "assets/img/EnemyPistolBullet.png");
+        imageManager.loadImage("BULLET_ENEMY_AR", "assets/img/EnemyARBullet.png");
+        imageManager.loadImage("BULLET_ENEMY_SHOTGUN", "assets/img/EnemyShotgunBullet.png");
     }
 
     @Override
@@ -202,6 +209,10 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
 
     // --- GAME PANEL (RENDERING ENGINE) ---
     private class GamePanel extends JPanel {
+
+        private final double BASE_SCALE = 2.5;
+        private final double BULLET_SCALE = 1.5; // Skala khusus bullet agar terlihat jelas
+
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
@@ -210,61 +221,73 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
-            // ---------------------------------------------------------
-            // 1. DRAW BACKGROUND (Tile.png - Tiling)
-            // ---------------------------------------------------------
+            // 1. BG
             BufferedImage bgImg = imageManager.getImage("BG");
             if (bgImg != null) {
-                int tileWidth = bgImg.getWidth();
-                int tileHeight = bgImg.getHeight();
-                for (int y = 0; y < getHeight(); y += tileHeight) {
-                    for (int x = 0; x < getWidth(); x += tileWidth) {
-                        g2d.drawImage(bgImg, x, y, null);
-                    }
+                int tw = bgImg.getWidth();
+                int th = bgImg.getHeight();
+                for (int y = 0; y < getHeight(); y += th) {
+                    for (int x = 0; x < getWidth(); x += tw) g2d.drawImage(bgImg, x, y, null);
                 }
             } else {
                 g2d.setColor(Color.BLACK);
                 g2d.fillRect(0, 0, getWidth(), getHeight());
             }
 
-            // ---------------------------------------------------------
-            // 2. Draw Obstacles (Box.png)
-            // ---------------------------------------------------------
-            BufferedImage obsImg = imageManager.getImage("OBSTACLE"); // Ini sekarang Box.png
+            // 2. OBSTACLES
+            BufferedImage obsImg = imageManager.getImage("OBSTACLE");
             for (Obstacle obs : obstacles) {
-                if (obsImg != null) {
-                    g2d.drawImage(obsImg, (int)obs.getX(), (int)obs.getY(), obs.getWidth(), obs.getHeight(), null);
-                } else {
+                if (obsImg != null) g2d.drawImage(obsImg, (int)obs.getX(), (int)obs.getY(), obs.getWidth(), obs.getHeight(), null);
+                else {
                     g2d.setColor(Color.DARK_GRAY);
                     g2d.fillRect((int)obs.getX(), (int)obs.getY(), obs.getWidth(), obs.getHeight());
                 }
             }
 
-            // ---------------------------------------------------------
-            // 3. Draw PowerUps (Manual Drawing - Tanpa Asset)
-            // ---------------------------------------------------------
+            // 3. POWERUPS
             for (PowerUp p : powerUps) {
-                // Kotak Warna
                 g2d.setColor(p.getColor());
                 g2d.fillRect((int)p.getX(), (int)p.getY(), p.getWidth(), p.getHeight());
-
-                // Border Putih
                 g2d.setColor(Color.WHITE);
                 g2d.setStroke(new BasicStroke(2));
                 g2d.drawRect((int)p.getX(), (int)p.getY(), p.getWidth(), p.getHeight());
-
-                // Huruf (A / S)
                 g2d.setFont(new Font("Arial", Font.BOLD, 20));
                 g2d.drawString(p.getLetter(), (int)p.getX() + 8, (int)p.getY() + 22);
             }
 
-            // 4. Draw Bullets
+            // -----------------------------------------------------------
+            // 4. BULLETS (UPDATED WITH IMAGE & ROTATION)
+            // -----------------------------------------------------------
             for (Bullet b : bullets) {
-                g2d.setColor(b.getColor());
-                g2d.fillOval((int)b.getX(), (int)b.getY(), b.getWidth(), b.getHeight());
+                BufferedImage bImg = imageManager.getImage(b.getImageKey());
+
+                if (bImg != null) {
+                    AffineTransform old = g2d.getTransform();
+
+                    // Hitung pusat bullet
+                    double cx = b.getX() + b.getWidth() / 2.0;
+                    double cy = b.getY() + b.getHeight() / 2.0;
+
+                    g2d.translate(cx, cy);
+                    g2d.rotate(b.getRotation()); // Rotasi sesuai arah gerak
+                    g2d.translate(-cx, -cy);
+
+                    // Gambar dengan skala
+                    int dw = (int)(b.getWidth() * BULLET_SCALE);
+                    int dh = (int)(b.getHeight() * BULLET_SCALE);
+                    int dx = (int)(b.getX() - (dw - b.getWidth()) / 2);
+                    int dy = (int)(b.getY() - (dh - b.getHeight()) / 2);
+
+                    g2d.drawImage(bImg, dx, dy, dw, dh, null);
+                    g2d.setTransform(old);
+                } else {
+                    // Fallback jika gambar null
+                    g2d.setColor(b.getColor());
+                    g2d.fillOval((int)b.getX(), (int)b.getY(), b.getWidth(), b.getHeight());
+                }
             }
 
-            // 5. Draw Aliens
+            // 5. ALIENS
             for (Alien a : aliens) {
                 BufferedImage alienImg;
                 if (a.getLoadout() == Alien.Loadout.ASSAULT_RIFLE) alienImg = imageManager.getImage("ALIEN_AR");
@@ -272,14 +295,37 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
                 else alienImg = imageManager.getImage("ALIEN_DEFAULT");
 
                 if (alienImg != null) {
-                    g2d.drawImage(alienImg, (int)a.getX(), (int)a.getY(), a.getWidth(), a.getHeight(), null);
+                    AffineTransform oldData = g2d.getTransform();
+                    double acx = a.getX() + a.getWidth() / 2.0;
+                    double acy = a.getY() + a.getHeight() / 2.0;
+                    double angle = 0;
+                    if (player != null) {
+                        double pcx = player.getX() + player.getWidth() / 2.0;
+                        double pcy = player.getY() + player.getHeight() / 2.0;
+                        angle = Math.atan2(pcy - acy, pcx - acx);
+                    }
+                    g2d.translate(acx, acy);
+                    g2d.rotate(angle);
+                    g2d.translate(-acx, -acy);
+
+                    double scaleFactor = BASE_SCALE;
+                    if (a.getLoadout() == Alien.Loadout.DEFAULT || a.getLoadout() == Alien.Loadout.SHOTGUN) scaleFactor = BASE_SCALE * 1.21;
+                    else if (a.getLoadout() == Alien.Loadout.ASSAULT_RIFLE) scaleFactor = BASE_SCALE * 0.85;
+
+                    int dw = (int)(a.getWidth() * scaleFactor);
+                    int dh = (int)(a.getHeight() * scaleFactor);
+                    int dx = (int)(a.getX() - (dw - a.getWidth()) / 2);
+                    int dy = (int)(a.getY() - (dh - a.getHeight()) / 2);
+
+                    g2d.drawImage(alienImg, dx, dy, dw, dh, null);
+                    g2d.setTransform(oldData);
                 } else {
                     g2d.setColor(Color.GREEN);
                     g2d.fillOval((int)a.getX(), (int)a.getY(), a.getWidth(), a.getHeight());
                 }
             }
 
-            // 6. Draw Player
+            // 6. PLAYER
             if (player != null) {
                 BufferedImage playerImg;
                 if (player.getCurrentWeapon() == Player.WeaponType.ASSAULT_RIFLE) playerImg = imageManager.getImage("PLAYER_AR");
@@ -287,15 +333,19 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
                 else playerImg = imageManager.getImage("PLAYER_DEFAULT");
 
                 AffineTransform old = g2d.getTransform();
-                double centerX = player.getX() + player.getWidth() / 2.0;
-                double centerY = player.getY() + player.getHeight() / 2.0;
+                double cx = player.getX() + player.getWidth() / 2.0;
+                double cy = player.getY() + player.getHeight() / 2.0;
 
-                g2d.translate(centerX, centerY);
+                g2d.translate(cx, cy);
                 g2d.rotate(player.getRotation());
-                g2d.translate(-centerX, -centerY);
+                g2d.translate(-cx, -cy);
 
                 if (playerImg != null) {
-                    g2d.drawImage(playerImg, (int)player.getX(), (int)player.getY(), player.getWidth(), player.getHeight(), null);
+                    int dw = (int)(player.getWidth() * BASE_SCALE);
+                    int dh = (int)(player.getHeight() * BASE_SCALE);
+                    int dx = (int)(player.getX() - (dw - player.getWidth()) / 2);
+                    int dy = (int)(player.getY() - (dh - player.getHeight()) / 2);
+                    g2d.drawImage(playerImg, dx, dy, dw, dh, null);
                 } else {
                     g2d.setColor(Color.CYAN);
                     g2d.fillOval((int)player.getX(), (int)player.getY(), player.getWidth(), player.getHeight());
@@ -303,7 +353,6 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
                 g2d.setTransform(old);
             }
 
-            // 7. Draw HUD
             drawHUD(g2d);
         }
 

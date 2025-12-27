@@ -6,6 +6,7 @@ import view.KontrakView;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.Line2D;
+import java.awt.geom.Point2D;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,10 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Description:
  * The COMPLETE "Brain" of the application.
  * Updated Features:
- * 1. Metal Slug Style PowerUps (AR & Shotgun).
- * 2. Player Weapon System (Spray for AR, Spread for Shotgun).
- * 3. Intelligent Enemy AI (Burst AR, Spread Shotgun).
- * 4. Wave System.
+ * 1. FIX: Obstacle Hitbox Offset Removed (Memperbaiki masalah tembus tembok).
+ * 2. FIX: Gun Muzzle Offset (Peluru keluar dari posisi senjata yang benar).
  */
 public class GamePresenter implements KontrakPresenter, Runnable {
 
@@ -32,7 +31,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     private List<Alien> aliens;
     private List<Bullet> bullets;
     private List<Obstacle> obstacles;
-    private List<PowerUp> powerUps; // List untuk item PowerUp
+    private List<PowerUp> powerUps;
     private TabelBenefit tabelBenefit;
 
     // Game State
@@ -56,14 +55,13 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     // Input States
     private boolean isUp, isDown, isLeft, isRight;
-    private boolean isMousePressed = false; // Deteksi apakah mouse sedang ditahan
+    private boolean isMousePressed = false;
 
     // Timers
-    private long lastArShotTime = 0; // Untuk membatasi kecepatan tembak AR Player
+    private long lastArShotTime = 0;
 
     public GamePresenter(KontrakView view) {
         this.view = view;
-        // Menggunakan CopyOnWriteArrayList untuk menghindari ConcurrentModificationException
         this.aliens = new CopyOnWriteArrayList<>();
         this.bullets = new CopyOnWriteArrayList<>();
         this.powerUps = new CopyOnWriteArrayList<>();
@@ -126,7 +124,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         if (tabelBenefit != null) {
             savedAmmo = tabelBenefit.getAmmoByUsername(currentUsername);
         }
-        player.setAmmo(savedAmmo > 0 ? savedAmmo : 50); // Minimal 50 ammo
+        player.setAmmo(savedAmmo > 0 ? savedAmmo : 50);
 
         // Reset Game Objects
         aliens.clear();
@@ -159,38 +157,29 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     private void generateLevel() {
-        int maxObstacles = 6; // Saya kurangi sedikit jadi 6 agar tidak terlalu penuh/gagal spawn karena gap besar
+        int maxObstacles = 6;
         int attempts = 0;
         int margin = 100;
 
-        while (obstacles.size() < maxObstacles && attempts < 3000) { // Tambah attempts biar komputer lebih sabar mencari tempat kosong
+        while (obstacles.size() < maxObstacles && attempts < 3000) {
             double ox = margin + random.nextInt(WIDTH - (2 * margin) - 60);
             double oy = margin + random.nextInt(HEIGHT - (2 * margin) - 60);
-
-            // Ukuran Tetap
             int w = 60;
             int h = 60;
 
             boolean valid = true;
-            // Jarak aman dari Player (agar tidak spawn di muka player)
             if (Math.hypot(ox - player.getX(), oy - player.getY()) < 200) valid = false;
 
             if (valid) {
                 Rectangle newRect = new Rectangle((int)ox, (int)oy, w, h);
                 for (Obstacle existing : obstacles) {
-
-                    // --- MODIFIKASI GAP DI SINI ---
-                    // Kita buat 'zona terlarang' di sekitar obstacle yang sudah ada.
-                    // Semakin besar 'gap', semakin jauh jaraknya.
-                    int gap = 100; // Jarak minimal antar obstacle (pixel)
-
+                    int gap = 100;
                     Rectangle expanded = new Rectangle(
                             (int)existing.getX() - gap,
                             (int)existing.getY() - gap,
                             existing.getWidth() + (gap * 2),
                             existing.getHeight() + (gap * 2)
                     );
-
                     if (newRect.intersects(expanded)) {
                         valid = false;
                         break;
@@ -222,7 +211,6 @@ public class GamePresenter implements KontrakPresenter, Runnable {
             }
 
             if (isRunning) {
-                // Update tampilan (Mengirim semua list termasuk PowerUps)
                 view.updateGraphics(player, aliens, bullets, obstacles, powerUps);
             }
 
@@ -235,8 +223,6 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         if (!isRunning) return;
 
         handlePlayerMovement();
-
-        // Cek apakah durasi senjata spesial player (30 detik) sudah habis
         player.checkWeaponTimer();
 
         spawnLogic();
@@ -244,11 +230,9 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         updatePowerUps();
         updateBullets();
 
-        // --- PLAYER SHOOTING LOGIC (CONTINUOUS / SPRAY) ---
-        // Jika mouse ditahan DAN senjata adalah AR, tembak terus menerus
         if (isMousePressed && player.getCurrentWeapon() == Player.WeaponType.ASSAULT_RIFLE) {
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastArShotTime > 50) {
+            if (currentTime - lastArShotTime > 50) { // Rate of fire AR
                 fireWeapon();
                 lastArShotTime = currentTime;
             }
@@ -257,27 +241,20 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     // --- SPAWNING LOGIC ---
     private void spawnLogic() {
-        // 1. Wave Check
         if (enemiesToSpawnInWave <= 0 && aliens.isEmpty()) {
             currentWave++;
-            player.setScore(player.getScore() + 500); // Bonus Wave Clear
+            player.setScore(player.getScore() + 500);
             startNextWave();
             return;
         }
 
-        // 2. Spawn Aliens
         if (enemiesToSpawnInWave > 0 && aliens.size() < 8 && random.nextInt(100) < 2) {
             spawnOneAlien();
         }
 
-        // 3. Spawn PowerUps (Metal Slug Style)
-        // Maksimal 2 powerup di layar, chance kecil (0.5% per tick)
         if (powerUps.size() < 1 && random.nextInt(2000) < 2) {
-            // Saya juga ubah powerUps.size() < 1 supaya cuma boleh ada 1 powerup di layar
-
             double x = 50 + random.nextInt(WIDTH - 100);
             double y = 50 + random.nextInt(HEIGHT - 100);
-
             PowerUp.Type type = random.nextBoolean() ? PowerUp.Type.ASSAULT_RIFLE : PowerUp.Type.SHOTGUN;
             powerUps.add(new PowerUp(x, y, type));
         }
@@ -291,27 +268,19 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
         Alien.Type type = random.nextBoolean() ? Alien.Type.CHASER : Alien.Type.ZIGZAG;
 
-        // Tentukan Loadout Musuh berdasarkan Wave
         Alien.Loadout loadout = Alien.Loadout.DEFAULT;
         int chance = random.nextInt(100);
 
         if (currentWave >= 1) {
-            // SETTING BARU: Mengurangi frekuensi musuh bersenjata
-            if (chance < 20) {
-                loadout = Alien.Loadout.SHOTGUN;        // 20% Peluang
-            } else if (chance < 40) {
-                loadout = Alien.Loadout.ASSAULT_RIFLE;  // 20% Peluang
-            } else {
-                loadout = Alien.Loadout.DEFAULT;        // 60% Peluang (Mayoritas)
-            }
+            if (chance < 20) loadout = Alien.Loadout.SHOTGUN;
+            else if (chance < 40) loadout = Alien.Loadout.ASSAULT_RIFLE;
+            else loadout = Alien.Loadout.DEFAULT;
         } else {
-            // Wave 1: Sangat jarang ada AR (misal 5% saja)
             if (chance < 5) loadout = Alien.Loadout.ASSAULT_RIFLE;
         }
 
         Alien alien = new Alien(spawnX, spawnY, type, loadout);
 
-        // Set kecepatan awal
         double dx = player.getX() - spawnX;
         double dy = player.getY() - spawnY;
         double distance = Math.sqrt(dx*dx + dy*dy);
@@ -328,35 +297,33 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     private void updatePowerUps() {
         for (PowerUp p : powerUps) {
-            // 1. Cek Durasi (Hilang setelah 10 detik)
             if (p.isExpired()) {
                 powerUps.remove(p);
                 continue;
             }
+            // Tabrakan PowerUp diperketat sedikit (inset 5 pixel)
+            Rectangle pRect = p.getBounds();
+            Rectangle shrunkPowerUp = new Rectangle(pRect.x + 5, pRect.y + 5, pRect.width - 10, pRect.height - 10);
 
-            // 2. Cek Tabrakan dengan Player (Ambil Senjata)
-            if (player.getBounds().intersects(p.getBounds())) {
+            if (player.getBounds().intersects(shrunkPowerUp)) {
                 if (p.getType() == PowerUp.Type.ASSAULT_RIFLE) {
-                    player.setWeapon(Player.WeaponType.ASSAULT_RIFLE, 30); // 30 Detik AR
-                    view.playSound("RELOAD"); // Suara Reload/PowerUp
+                    player.setWeapon(Player.WeaponType.ASSAULT_RIFLE, 30);
+                    view.playSound("RELOAD");
                 } else {
-                    player.setWeapon(Player.WeaponType.SHOTGUN, 30); // 30 Detik Shotgun
+                    player.setWeapon(Player.WeaponType.SHOTGUN, 30);
                     view.playSound("RELOAD");
                 }
-                powerUps.remove(p); // Hapus powerup setelah diambil
+                powerUps.remove(p);
             }
         }
     }
 
     private void updateAliens() {
         for (Alien alien : aliens) {
-            double prevX = alien.getX();
-            double prevY = alien.getY();
-
             alien.setX(alien.getX() + alien.getVelX());
             alien.setY(alien.getY() + alien.getVelY());
 
-            // Bounce Logic (Layar)
+            // Bounce Logic
             int aw = alien.getWidth(); int ah = alien.getHeight();
             if (alien.getX() < 0 || alien.getX() > WIDTH - aw) {
                 alien.setX(Math.max(0, Math.min(WIDTH-aw, alien.getX())));
@@ -367,16 +334,15 @@ public class GamePresenter implements KontrakPresenter, Runnable {
                 alien.setVelY(alien.getVelY() * -1);
             }
 
-            // Bounce Logic (Obstacles)
             Rectangle alienRect = alien.getBounds();
             for (Obstacle obs : obstacles) {
-                if (alienRect.intersects(obs.getBounds())) {
+                // Gunakan Helper method untuk cek collision yang lebih presisi
+                if (checkRectCollision(alienRect, obs, 5)) {
                     alien.setVelX(alien.getVelX() * -1);
                     alien.setVelY(alien.getVelY() * -1);
                 }
             }
 
-            // Enemy Shooting Logic
             updateAlienShootingLogic(alien);
         }
     }
@@ -384,22 +350,20 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     private void updateAlienShootingLogic(Alien alien) {
         long currentTime = System.currentTimeMillis();
 
-        // 1. Logic Burst (AR Enemy)
         if (alien.isBursting()) {
-            if (currentTime - alien.getLastBurstTime() > 100) { // Jeda burst 0.1s
+            if (currentTime - alien.getLastBurstTime() > 100) {
                 double dx = player.getX() - alien.getX();
                 double dy = player.getY() - alien.getY();
-                createArBullet(alien, Math.atan2(dy, dx)); // Tembak AR Bullet
+                createArBullet(alien, Math.atan2(dy, dx));
 
                 alien.setBurstShotsFired(alien.getBurstShotsFired() + 1);
                 alien.setLastBurstTime(currentTime);
 
                 if (alien.getBurstShotsFired() >= 5) {
-                    alien.setBursting(false); // Selesai burst
+                    alien.setBursting(false);
                 }
             }
         }
-        // 2. Logic Cooldown Normal
         else {
             long timeSinceLastShot = currentTime - alien.getLastShotTime();
             long cooldown = 2000;
@@ -409,16 +373,13 @@ public class GamePresenter implements KontrakPresenter, Runnable {
             if (timeSinceLastShot > cooldown) {
                 if (isLineOfSightClear(alien, player)) {
                     if (alien.getLoadout() == Alien.Loadout.ASSAULT_RIFLE) {
-                        // Mulai Burst AR
                         alien.setBursting(true);
                         alien.setBurstShotsFired(1);
                         alien.setLastBurstTime(currentTime);
-                        // Tembakan pertama
                         double dx = player.getX() - alien.getX();
                         double dy = player.getY() - alien.getY();
                         createArBullet(alien, Math.atan2(dy, dx));
                     } else {
-                        // Shotgun atau Default
                         shootFromAlien(alien);
                     }
                     alien.setLastShotTime(currentTime);
@@ -428,9 +389,12 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     private boolean isLineOfSightClear(Alien alien, Player player) {
-        Line2D line = new Line2D.Double(alien.getX()+15, alien.getY()+15, player.getX()+15, player.getY()+15);
+        Line2D line = new Line2D.Double(alien.getX()+30, alien.getY()+30, player.getX()+30, player.getY()+30);
         for (Obstacle obs : obstacles) {
-            if (line.intersects(obs.getBounds())) return false;
+            // Kita pakai bounds yang diperkecil untuk Line of Sight juga
+            Rectangle rect = obs.getBounds();
+            Rectangle shrunk = new Rectangle(rect.x + 10, rect.y + 10, rect.width - 20, rect.height - 20);
+            if (line.intersects(shrunk)) return false;
         }
         return true;
     }
@@ -439,9 +403,10 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         double dx = player.getX() - alien.getX();
         double dy = player.getY() - alien.getY();
         double angle = Math.atan2(dy, dx);
+        double spawnX = alien.getX() + alien.getWidth()/2.0;
+        double spawnY = alien.getY() + alien.getHeight()/2.0;
 
         if (alien.getLoadout() == Alien.Loadout.SHOTGUN) {
-            // Musuh Shotgun: 5 Peluru menyebar
             int pellets = 5;
             double spread = Math.toRadians(45);
             double startAngle = angle - (spread/2);
@@ -449,35 +414,43 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
             for (int i=0; i<pellets; i++) {
                 double a = startAngle + (i*step);
-                Bullet b = new Bullet(alien.getX()+15, alien.getY()+15, a, false, new Color(255, 200, 0)); // Kuning Gelap
-                b.setSpeed(6.0);
-                bullets.add(b);
+                double speed = 6.0;
+                double vx = Math.cos(a) * speed;
+                double vy = Math.sin(a) * speed;
+                bullets.add(new Bullet(spawnX, spawnY, vx, vy, Color.ORANGE, "BULLET_ENEMY_SHOTGUN"));
             }
             view.playSound("SHOOT_ENEMY");
         } else {
-            // Musuh Default
             double jitter = Math.toRadians((random.nextDouble()*20)-10);
-            bullets.add(new Bullet(alien.getX()+15, alien.getY()+15, angle+jitter, false, Color.RED));
+            double a = angle + jitter;
+            double speed = 5.0;
+            double vx = Math.cos(a) * speed;
+            double vy = Math.sin(a) * speed;
+            bullets.add(new Bullet(spawnX, spawnY, vx, vy, Color.RED, "BULLET_ENEMY_PISTOL"));
             view.playSound("SHOOT_ENEMY");
         }
     }
 
     private void createArBullet(Alien alien, double angle) {
         double jitter = Math.toRadians((random.nextDouble()*6)-3);
-        Bullet b = new Bullet(alien.getX()+15, alien.getY()+15, angle+jitter, false, new Color(255, 69, 0)); // Orange/Merah Terang
-        b.setSpeed(6.0);
-        bullets.add(b);
+        double a = angle + jitter;
+        double speed = 7.0;
+        double vx = Math.cos(a) * speed;
+        double vy = Math.sin(a) * speed;
+        double spawnX = alien.getX() + alien.getWidth()/2.0;
+        double spawnY = alien.getY() + alien.getHeight()/2.0;
+
+        bullets.add(new Bullet(spawnX, spawnY, vx, vy, Color.RED, "BULLET_ENEMY_AR"));
         view.playSound("SHOOT_ENEMY");
     }
 
     private void updateBullets() {
         for (Bullet b : bullets) {
-            b.setX(b.getX() + Math.cos(b.getAngle()) * b.getSpeed());
-            b.setY(b.getY() + Math.sin(b.getAngle()) * b.getSpeed());
+            b.update();
 
             if (b.getX() < 0 || b.getX() > WIDTH || b.getY() < 0 || b.getY() > HEIGHT) {
                 bullets.remove(b);
-                if (!b.isPlayerBullet()) handleMissedBullet();
+                if (!b.getImageKey().contains("PLAYER")) handleMissedBullet();
                 continue;
             }
             checkCollisionSafe(b);
@@ -489,26 +462,25 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
         // Obstacle Collision
         for (Obstacle obs : obstacles) {
-            if (br.intersects(obs.getBounds())) {
+            if (checkRectCollision(br, obs, 5)) {
                 bullets.remove(b);
-                if (!b.isPlayerBullet()) handleMissedBullet();
+                if (!b.getImageKey().contains("PLAYER")) handleMissedBullet();
                 return;
             }
         }
 
-        // Hit Entity
-        if (b.isPlayerBullet()) {
+        // Hit Entity Logic
+        if (b.getImageKey().contains("PLAYER")) {
             for (Alien a : aliens) {
                 if (br.intersects(a.getBounds())) {
                     aliens.remove(a);
                     bullets.remove(b);
                     player.setScore(player.getScore() + 100);
-                    view.playSound("EXPLOSION"); // Pastikan file suara ada (optional)
+                    view.playSound("EXPLOSION");
                     return;
                 }
             }
         } else {
-            // Enemy hitting Player
             if (br.intersects(player.getBounds())) {
                 gameOver();
             }
@@ -517,7 +489,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     private void handleMissedBullet() {
         missedBulletsSession++;
-        player.setAmmo(player.getAmmo() + 1); // Refund peluru musuh yang meleset
+        player.setAmmo(player.getAmmo() + 1);
         view.playSound("RELOAD");
     }
 
@@ -537,22 +509,46 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         double nextX = player.getX();
         if (isLeft) nextX -= speed; if (isRight) nextX += speed;
 
-        nextX = Math.max(0, Math.min(WIDTH-40, nextX)); // Clamp X
+        nextX = Math.max(0, Math.min(WIDTH-60, nextX));
         if (!checkPlayerCollision(nextX, player.getY())) player.setX(nextX);
 
         double nextY = player.getY();
         if (isUp) nextY -= speed; if (isDown) nextY += speed;
 
-        nextY = Math.max(0, Math.min(HEIGHT-70, nextY)); // Clamp Y
+        nextY = Math.max(0, Math.min(HEIGHT-60, nextY));
         if (!checkPlayerCollision(player.getX(), nextY)) player.setY(nextY);
     }
 
+    /**
+     * PERBAIKAN 1: FIX OFFSET HITBOX
+     * Sebelumnya ada '+ 15' yang membuat hitbox bergeser ke kanan bawah,
+     * sehingga sisi kiri player bisa menembus tembok.
+     * Sekarang kita gunakan 'x' dan 'y' murni karena hitbox (30x30)
+     * sudah otomatis di-center oleh renderer visual (60x60).
+     */
     private boolean checkPlayerCollision(double x, double y) {
+        // Gunakan posisi asli (tanpa +15) karena Player.java sudah mendefinisikan
+        // x,y sebagai titik kiri-atas dari hitbox 30x30.
         Rectangle pRect = new Rectangle((int)x, (int)y, 30, 30);
+
         for (Obstacle obs : obstacles) {
-            if (pRect.intersects(obs.getBounds())) return true;
+            // Gunakan padding 10 pixel agar visual bisa sedikit overlap tembok (agar tidak kaku)
+            if (checkRectCollision(pRect, obs, 10)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    private boolean checkRectCollision(Rectangle entityRect, Obstacle obs, int padding) {
+        Rectangle original = obs.getBounds();
+        Rectangle tighterBox = new Rectangle(
+                original.x + padding,
+                original.y + padding,
+                Math.max(1, original.width - (padding * 2)),
+                Math.max(1, original.height - (padding * 2))
+        );
+        return entityRect.intersects(tighterBox);
     }
 
     @Override
@@ -563,72 +559,92 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     @Override
     public void rotatePlayer(int mouseX, int mouseY) {
         if (!isRunning) return;
-        double dx = mouseX - (player.getX() + 15);
-        double dy = mouseY - (player.getY() + 15);
+        // Pusat player untuk kalkulasi sudut (+30 karena hitbox visual 60)
+        double dx = mouseX - (player.getX() + 30);
+        double dy = mouseY - (player.getY() + 30);
         player.setRotation(Math.atan2(dy, dx));
     }
 
     // --- PLAYER SHOOTING HANDLING ---
 
-    // Dipanggil saat Mouse Ditekan (Pressed)
     public void startShooting() {
         if (!isRunning) return;
         isMousePressed = true;
-
-        // Jika Senjata Semi-Auto (Default/Shotgun), tembak sekali saat klik
         if (player.getCurrentWeapon() == Player.WeaponType.DEFAULT ||
                 player.getCurrentWeapon() == Player.WeaponType.SHOTGUN) {
             fireWeapon();
         }
-        // Jika AR, akan ditangani di updateGame() (Spray)
     }
 
-    // Dipanggil saat Mouse Dilepas (Released)
     public void stopShooting() {
         isMousePressed = false;
     }
 
-    // Deprecated from interface (diganti logic startShooting)
     @Override public void shoot() {}
 
-    // Core Shooting Logic Player
+    /**
+     * PERBAIKAN 2: GUN OFFSET
+     * Menghitung posisi spawn peluru agar keluar dari moncong senjata (kanan).
+     */
+    private Point2D.Double getGunMuzzlePosition() {
+        double angle = player.getRotation();
+
+        // Pusat Player (Visual)
+        double centerX = player.getX() + 30;
+        double centerY = player.getY() + 30;
+
+        // OFFSET SETTING (Sesuaikan angka ini agar pas dengan gambar)
+        double forwardOffset = 25.0; // Jarak moncong ke depan dari pusat
+        double rightOffset = 18.0;   // Jarak moncong ke kanan dari pusat (tangan kanan)
+
+        // Rumus Rotasi Vektor:
+        // SpawnX = PusatX + (Maju * cos) + (Kanan * cos(90+sudut))
+        // SpawnY = PusatY + (Maju * sin) + (Kanan * sin(90+sudut))
+        // cos(90+a) = -sin(a), sin(90+a) = cos(a)
+
+        double spawnX = centerX + (forwardOffset * Math.cos(angle)) - (rightOffset * Math.sin(angle));
+        double spawnY = centerY + (forwardOffset * Math.sin(angle)) + (rightOffset * Math.cos(angle));
+
+        return new Point2D.Double(spawnX, spawnY);
+    }
+
     private void fireWeapon() {
         Player.WeaponType weapon = player.getCurrentWeapon();
+        Point2D.Double muzzle = getGunMuzzlePosition(); // Ambil posisi spawn yang sudah dikoreksi
 
         if (weapon == Player.WeaponType.SHOTGUN) {
-            // LOGIKA SHOTGUN PLAYER
-            if (player.getAmmo() >= 5) { // Butuh 5 ammo
+            if (player.getAmmo() >= 5) {
                 int pellets = 5;
-                double spread = Math.toRadians(30); // Sebaran Player lebih sempit (30 derajat)
+                double spread = Math.toRadians(30);
                 double startAngle = player.getRotation() - (spread/2);
                 double step = spread / (pellets-1);
 
                 for (int i=0; i<pellets; i++) {
                     double a = startAngle + (i*step);
-                    Bullet b = new Bullet(player.getX()+15, player.getY()+15, a, true, Color.YELLOW);
-                    b.setSpeed(5.0);
-                    bullets.add(b);
+                    double speed = 8.0;
+                    double vx = Math.cos(a) * speed;
+                    double vy = Math.sin(a) * speed;
+                    bullets.add(new Bullet(muzzle.x, muzzle.y, vx, vy, Color.YELLOW, "BULLET_PLAYER_SHOTGUN"));
                 }
                 player.setAmmo(player.getAmmo() - 5);
                 view.playSound("SHOOT");
             } else if (player.getAmmo() > 0) {
-                // Sisa peluru dikit? Tembak biasa
                 fireDefaultBullet();
             }
 
         } else if (weapon == Player.WeaponType.ASSAULT_RIFLE) {
-            // LOGIKA AR PLAYER (Spray)
             if (player.getAmmo() > 0) {
-                double jitter = Math.toRadians((random.nextDouble()*4)-2); // Sedikit goyang
-                Bullet b = new Bullet(player.getX()+15, player.getY()+15, player.getRotation()+jitter, true, Color.ORANGE);
-                b.setSpeed(12.0); // Peluru Player AR Cepat
-                bullets.add(b);
+                double jitter = Math.toRadians((random.nextDouble()*4)-2);
+                double a = player.getRotation() + jitter;
+                double speed = 12.0;
+                double vx = Math.cos(a) * speed;
+                double vy = Math.sin(a) * speed;
+                bullets.add(new Bullet(muzzle.x, muzzle.y, vx, vy, Color.ORANGE, "BULLET_PLAYER_AR"));
                 player.setAmmo(player.getAmmo() - 1);
-                view.playSound("SHOOT"); // Idealnya suara loop
+                view.playSound("SHOOT");
             }
 
         } else {
-            // LOGIKA DEFAULT (PISTOL)
             if (player.getAmmo() > 0) {
                 fireDefaultBullet();
             }
@@ -636,8 +652,12 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     private void fireDefaultBullet() {
-        Bullet b = new Bullet(player.getX()+15, player.getY()+15, player.getRotation(), true, Color.YELLOW);
-        bullets.add(b);
+        Point2D.Double muzzle = getGunMuzzlePosition();
+        double a = player.getRotation();
+        double speed = 10.0;
+        double vx = Math.cos(a) * speed;
+        double vy = Math.sin(a) * speed;
+        bullets.add(new Bullet(muzzle.x, muzzle.y, vx, vy, Color.YELLOW, "BULLET_PLAYER_PISTOL"));
         player.setAmmo(player.getAmmo() - 1);
         view.playSound("SHOOT");
     }
