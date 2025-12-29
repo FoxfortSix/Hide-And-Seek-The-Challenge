@@ -1,7 +1,5 @@
 import presenter.GamePresenter;
-import presenter.KontrakPresenter;
 import view.GameWindow;
-import view.KontrakView;
 
 import javax.swing.SwingUtilities;
 
@@ -9,21 +7,29 @@ import javax.swing.SwingUtilities;
  * Filename  : Main.java
  * Description:
  * The entry point of the application.
- * Responsible for assembling the MVP components:dd
- * 1. Creates the View.
- * 2. Creates the Presenter and injects the View into it.
- * 3. Injects the Presenter into the View (for handling inputs).
- * 4. Starts the application flow.
+ * <p>
+ * Responsible for assembling the MVP (Model-View-Presenter) components:
+ * <ol>
+ *     <li>Creates the View ({@link GameWindow}).</li>
+ *     <li>Creates the Presenter ({@link GamePresenter}) and injects the View into it.</li>
+ *     <li>Injects the Presenter into the View (for handling inputs).</li>
+ *     <li>Starts the application flow by showing the menu.</li>
+ * </ol>
+ * </p>
  *
- * Programmer: MochammadAzkaBasria
- * Date      : 2025-12-24
+ * @author Mochammad Azka Basria
+ * @version 1.0
  */
 public class Main {
 
     /**
      * Main method to launch the application.
-     * Uses SwingUtilities.invokeLater to ensure thread safety for the GUI.
-     * * @param args Command line arguments (not used).
+     * <p>
+     * Uses {@link SwingUtilities#invokeLater(Runnable)} to ensure thread safety
+     * when initializing the Swing GUI.
+     * </p>
+     *
+     * @param args Command line arguments (not used).
      */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

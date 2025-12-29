@@ -5,33 +5,52 @@ import java.util.List;
 import java.util.ArrayList;
 
 /**
- * Filename  : TabelBenefit.java
- * Package   : model
- * Description:
- * Handles CRUD operations specific to the 'tbenefit' table.
- * Inherits connection capabilities from the DB class.
+ * Provides data access operations for the {@code tbenefit} database table.
+ * <p>
+ * The {@code TabelBenefit} class extends {@link DB} and encapsulates
+ * all SQL logic related to player benefit data, including score,
+ * ammunition, and shooting accuracy.
+ * </p>
  *
- * Programmer: MochammadAzkaBasria
- * Date      : 2025-12-24
+ * <p>
+ * Responsibilities of this class include:
+ * <ul>
+ *     <li>Registering new players</li>
+ *     <li>Retrieving leaderboard data</li>
+ *     <li>Loading player-specific statistics</li>
+ *     <li>Persisting game progress</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * This class functions as a table-specific Data Access Object (DAO)
+ * and isolates SQL queries from higher application layers.
+ * </p>
+ *
+ * @author Mochammad Azka Basria
  */
 public class TabelBenefit extends DB {
 
     /**
-     * Constructor: TabelBenefit
-     * Calls the superclass (DB) constructor to initialize the connection.
-     * * @throws Exception If connection fails.
-     * @throws SQLException If a SQL error occurs.
+     * Constructs a new {@code TabelBenefit} instance.
+     * <p>
+     * This constructor initializes the database connection
+     * by invoking the superclass constructor.
+     * </p>
+     *
+     * @throws Exception   if database connection initialization fails
+     * @throws SQLException if a SQL-related error occurs
      */
     public TabelBenefit() throws Exception, SQLException {
         super();
     }
 
-
-
     /**
-     * Method: getBenefit
-     * Retrieves ALL data from the 'tbenefit' table, ordered by score descending.
-     * The result is stored in the parent class's 'rs' (ResultSet) variable.
+     * Retrieves all player benefit records from the database.
+     * <p>
+     * Data is ordered by score in descending order and stored
+     * in the inherited {@link #rs} result set.
+     * </p>
      */
     public void getBenefit() {
         try {
@@ -42,23 +61,34 @@ public class TabelBenefit extends DB {
         }
     }
 
+    /**
+     * Registers a player if the username does not already exist.
+     * <p>
+     * The registration process follows these steps:
+     * <ol>
+     *     <li>Check whether the username exists in the database</li>
+     *     <li>If not found, insert a new record with default values</li>
+     *     <li>If found, skip insertion and reuse existing data</li>
+     * </ol>
+     * </p>
+     *
+     * @param username the unique username identifying the player
+     */
     public void registerPlayer(String username) {
         try {
-            // 1. Cek apakah user sudah ada
-            String checkQuery = "SELECT * FROM tbenefit WHERE username = '" + username + "'";
+            String checkQuery =
+                    "SELECT * FROM tbenefit WHERE username = '" + username + "'";
             createQuery(checkQuery);
 
             if (!getResult().next()) {
-                // 2. Jika TIDAK ADA, Insert data baru dengan nilai 0
-                // Penting: Tutup result set sebelumnya sebelum query baru
                 closeResult();
 
-                String insertQuery = "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
-                        "'" + username + "', 0, 0, 0)";
+                String insertQuery =
+                        "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
+                                "'" + username + "', 0, 0, 0)";
                 createUpdate(insertQuery);
                 System.out.println("New player registered: " + username);
             } else {
-                // Jika sudah ada, tutup result set saja
                 closeResult();
                 System.out.println("Welcome back, " + username);
             }
@@ -67,8 +97,19 @@ public class TabelBenefit extends DB {
         }
     }
 
+    /**
+     * Retrieves all benefit data in a tabular format.
+     * <p>
+     * This method converts database rows into a two-dimensional
+     * object array, making it suitable for UI components such
+     * as tables or scoreboards.
+     * </p>
+     *
+     * @return a two-dimensional array containing benefit data
+     */
     public Object[][] getAllData() {
         List<Object[]> list = new ArrayList<>();
+
         try {
             String query = "SELECT * FROM tbenefit ORDER BY skor DESC";
             createQuery(query);
@@ -94,10 +135,18 @@ public class TabelBenefit extends DB {
         return data;
     }
 
+    /**
+     * Retrieves the remaining ammunition for a specific player.
+     *
+     * @param username the player's username
+     * @return the remaining ammunition count
+     */
     public int getAmmoByUsername(String username) {
         int ammo = 0;
+
         try {
-            String query = "SELECT sisa_peluru FROM tbenefit WHERE username = '" + username + "'";
+            String query =
+                    "SELECT sisa_peluru FROM tbenefit WHERE username = '" + username + "'";
             createQuery(query);
 
             if (rs.next()) {
@@ -108,42 +157,54 @@ public class TabelBenefit extends DB {
         } catch (Exception e) {
             System.err.println("Failed to get ammo: " + e);
         }
+
         return ammo;
     }
 
     /**
-     * Method: saveGameData
-     * Saves the latest game progress to the database.
-     * Logic:
-     * 1. Check if the username exists.
-     * 2. If EXISTS: UPDATE (add score, add missed bullets, replace ammo).
-     * 3. If NOT EXISTS: INSERT new record.
-     * * @param username The player's username (Primary Key).
-     * @param scoreGained Score gained in this session (cumulative).
-     * @param missedGained Missed bullets count in this session (cumulative).
-     * @param currentBullets Current ammo remaining (replaces old value).
+     * Persists the player's latest game progress.
+     * <p>
+     * The save operation follows this logic:
+     * <ol>
+     *     <li>Check if the player record already exists</li>
+     *     <li>If it exists, update cumulative values</li>
+     *     <li>If it does not exist, insert a new record</li>
+     * </ol>
+     * </p>
+     *
+     * @param username       the player's username
+     * @param scoreGained    score gained during the session
+     * @param missedGained   missed bullets during the session
+     * @param currentBullets current remaining ammunition
      */
-    public void saveGameData(String username, int scoreGained, int missedGained, int currentBullets) {
+    public void saveGameData(
+            String username,
+            int scoreGained,
+            int missedGained,
+            int currentBullets) {
+
         try {
-            String checkQuery = "SELECT * FROM tbenefit WHERE username = '" + username + "'";
+            String checkQuery =
+                    "SELECT * FROM tbenefit WHERE username = '" + username + "'";
             createQuery(checkQuery);
 
             if (getResult().next()) {
-                // UPDATE (Menambahkan skor ke yang sudah ada)
-                String updateQuery = "UPDATE tbenefit SET " +
-                        "skor = skor + " + scoreGained + ", " +
-                        "peluru_meleset = peluru_meleset + " + missedGained + ", " +
-                        "sisa_peluru = " + currentBullets + " " +
-                        "WHERE username = '" + username + "'";
+                String updateQuery =
+                        "UPDATE tbenefit SET " +
+                                "skor = skor + " + scoreGained + ", " +
+                                "peluru_meleset = peluru_meleset + " + missedGained + ", " +
+                                "sisa_peluru = " + currentBullets + " " +
+                                "WHERE username = '" + username + "'";
 
                 closeResult();
                 createUpdate(updateQuery);
                 System.out.println("Data updated for: " + username);
             } else {
-                // Fallback jika entah kenapa data belum ada (misal error saat register)
                 closeResult();
-                String insertQuery = "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
-                        "'" + username + "', " + scoreGained + ", " + missedGained + ", " + currentBullets + ")";
+                String insertQuery =
+                        "INSERT INTO tbenefit (username, skor, peluru_meleset, sisa_peluru) VALUES (" +
+                                "'" + username + "', " + scoreGained + ", " +
+                                missedGained + ", " + currentBullets + ")";
                 createUpdate(insertQuery);
             }
         } catch (Exception e) {

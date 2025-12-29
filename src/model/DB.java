@@ -7,58 +7,92 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Filename  : DB.java
- * Package   : model
- * Description:
- * Handles basic MySQL database connections and raw query execution.
- * This class serves as the parent class for specific table Data Access Objects (DAOs).
+ * Provides low-level database access functionality.
+ * <p>
+ * The {@code DB} class is responsible for establishing and managing a
+ * direct connection to a MySQL database using JDBC. It offers basic
+ * query execution capabilities and serves as a base class for
+ * table-specific Data Access Objects (DAOs).
+ * </p>
  *
- * Programmer: [Your Name]
- * Date      : 2025-12-24
+ * <p>
+ * This class handles:
+ * <ul>
+ *     <li>JDBC driver initialization</li>
+ *     <li>Database connection management</li>
+ *     <li>Execution of raw SQL queries and updates</li>
+ *     <li>Lifecycle management of JDBC resources</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * Higher-level DAO classes are expected to extend this class and
+ * translate raw {@link ResultSet} data into domain objects.
+ * </p>
+ *
+ * @author Mochammad Azka Basria
  */
 public class DB {
 
-    // Database Configuration
-    private String conAddress = "jdbc:mysql://localhost:3306/db_hide_seek?user=root&password=&useSSL=false&allowPublicKeyRetrieval=true";
-    // JDBC Components
+    /**
+     * JDBC connection string for the MySQL database.
+     * <p>
+     * Includes authentication credentials and connection parameters
+     * required for local development.
+     * </p>
+     */
+    private String conAddress =
+            "jdbc:mysql://localhost:3306/db_hide_seek?user=root&password=&useSSL=false&allowPublicKeyRetrieval=true";
+
+    /** JDBC statement used to execute SQL commands. */
     protected Statement stmt = null;
+
+    /** Result set holding data returned from SELECT queries. */
     protected ResultSet rs = null;
+
+    /** Active JDBC connection to the database. */
     protected Connection conn = null;
 
     /**
-     * Constructor: DB
-     * Establishes a connection to the database immediately upon instantiation.
-     * * @throws Exception If the JDBC driver is not found.
-     * @throws SQLException If the connection to the database fails.
+     * Constructs a new {@code DB} instance and immediately establishes
+     * a database connection.
+     * <p>
+     * The constructor loads the MySQL JDBC driver and opens a connection
+     * using the configured connection string. Transaction isolation is
+     * set to allow non-blocking reads.
+     * </p>
+     *
+     * @throws Exception   if the JDBC driver cannot be loaded
+     * @throws SQLException if the database connection fails
      */
     public DB() throws Exception, SQLException {
         try {
-            // Load MySQL Driver (Ensure mysql-connector-j is in your library path)
             Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
 
-            // Establish Connection
             conn = DriverManager.getConnection(conAddress);
             conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 
         } catch (SQLException es) {
-            // Throw exception to be handled by the caller
             throw es;
         }
     }
 
     /**
-     * Method: createQuery
-     * Executes a SELECT query that returns a ResultSet.
-     * * @param query The SQL query string (e.g., "SELECT * FROM table").
-     * @throws Exception If a general error occurs.
-     * @throws SQLException If the SQL syntax is invalid or execution fails.
+     * Executes a SQL SELECT query.
+     * <p>
+     * If the query produces a result set, it is stored internally and
+     * can be retrieved using {@link #getResult()}.
+     * </p>
+     *
+     * @param query the SQL SELECT statement to execute
+     * @throws Exception   if a general execution error occurs
+     * @throws SQLException if the SQL statement is invalid or fails
      */
     public void createQuery(String query) throws Exception, SQLException {
         try {
             stmt = conn.createStatement();
-            // Execute the query
+
             if (stmt.execute(query)) {
-                // Retrieve the result set and store it in the 'rs' variable
                 rs = stmt.getResultSet();
             }
         } catch (SQLException es) {
@@ -67,42 +101,47 @@ public class DB {
     }
 
     /**
-     * Method: createUpdate
-     * Executes data manipulation queries (INSERT, UPDATE, DELETE).
-     * Does not return a ResultSet.
-     * * @param query The SQL query string.
-     * @throws Exception If a general error occurs.
-     * @throws SQLException If the execution fails.
+     * Executes a SQL data manipulation statement.
+     * <p>
+     * This method is intended for INSERT, UPDATE, or DELETE operations
+     * and does not produce a {@link ResultSet}.
+     * </p>
+     *
+     * @param query the SQL update statement to execute
+     * @throws Exception   if a general execution error occurs
+     * @throws SQLException if the SQL execution fails
      */
     public void createUpdate(String query) throws Exception, SQLException {
         try {
             stmt = conn.createStatement();
-            int result = stmt.executeUpdate(query);
+            stmt.executeUpdate(query);
         } catch (SQLException es) {
             throw es;
         }
     }
 
     /**
-     * Method: getResult
-     * Retrieves the ResultSet from the last executed query.
-     * * @return The current ResultSet, or null if retrieval fails.
-     * @throws Exception If an error occurs during retrieval.
+     * Returns the {@link ResultSet} generated by the last executed query.
+     *
+     * @return the current result set, or {@code null} if none exists
+     * @throws Exception if result retrieval fails
      */
     public ResultSet getResult() throws Exception {
-        ResultSet temp = null;
         try {
             return rs;
         } catch (Exception ex) {
-            return temp;
+            return null;
         }
     }
 
     /**
-     * Method: closeResult
-     * Closes the ResultSet and Statement to free up resources.
-     * Must be called after data retrieval is complete.
-     * * @throws Exception If an error occurs during closure.
+     * Closes the active {@link ResultSet} and {@link Statement}.
+     * <p>
+     * This method should be invoked after query processing is complete
+     * to release database resources.
+     * </p>
+     *
+     * @throws Exception if an error occurs during resource cleanup
      */
     public void closeResult() throws Exception {
         if (rs != null) {
@@ -113,6 +152,7 @@ public class DB {
                 throw sqlEx;
             }
         }
+
         if (stmt != null) {
             try {
                 stmt.close();
@@ -124,9 +164,13 @@ public class DB {
     }
 
     /**
-     * Method: closeConnection
-     * Closes the physical connection to the database.
-     * * @throws Exception If closing the connection fails.
+     * Closes the database connection.
+     * <p>
+     * This method terminates the physical JDBC connection and should be
+     * called when the application no longer requires database access.
+     * </p>
+     *
+     * @throws Exception if closing the connection fails
      */
     public void closeConnection() throws Exception {
         if (conn != null) {

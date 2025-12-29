@@ -3,30 +3,64 @@ package model;
 import java.awt.Rectangle;
 
 /**
- * Filename  : GameObject.java
- * Package   : model
- * Description:
- * The abstract base class for all game entities (Player, Alien, Bullet, Obstacle).
- * It holds common properties like position (x, y) and dimensions (width, height).
+ * Abstract base class for all entities in the game world.
+ * <p>
+ * The {@code GameObject} class defines the fundamental spatial properties
+ * shared by every interactive or renderable entity, including position
+ * and size. Concrete game objects such as players, enemies, projectiles,
+ * and obstacles inherit from this class.
+ * </p>
  *
- * Programmer: MochammadAzkaBasria
- * Date      : 2025-12-24
+ * <p>
+ * Responsibilities of this class include:
+ * <ul>
+ *     <li>Storing world coordinates</li>
+ *     <li>Defining object dimensions</li>
+ *     <li>Providing a standard collision bounding box</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * Subclasses are expected to implement behavior-specific logic such as
+ * movement, rendering, and interaction handling.
+ * </p>
+ *
+ * @author Mochammad Azka Basria
  */
 public abstract class GameObject {
 
-    // Protected fields so subclasses can access them directly if needed
+    /**
+     * Horizontal position in world coordinates.
+     * <p>
+     * Declared as {@code protected} to allow direct access by subclasses
+     * where performance or simplicity is required.
+     * </p>
+     */
     protected double x;
+
+    /**
+     * Vertical position in world coordinates.
+     */
     protected double y;
+
+    /**
+     * Width of the object's collision and render area.
+     */
     protected int width;
+
+    /**
+     * Height of the object's collision and render area.
+     */
     protected int height;
 
     /**
-     * Constructor: GameObject
-     * Initializes the position and size of the object.
-     * * @param x Initial X coordinate.
-     * @param y Initial Y coordinate.
-     * @param width Width of the object.
-     * @param height Height of the object.
+     * Constructs a new {@code GameObject} with the specified
+     * position and dimensions.
+     *
+     * @param x      the initial horizontal coordinate
+     * @param y      the initial vertical coordinate
+     * @param width  the width of the object
+     * @param height the height of the object
      */
     public GameObject(double x, double y, int width, int height) {
         this.x = x;
@@ -35,57 +69,72 @@ public abstract class GameObject {
         this.height = height;
     }
 
-    // --- GETTERS & SETTERS ---
-
     /**
-     * @return The current X coordinate.
+     * Returns the current horizontal position.
+     *
+     * @return the x-coordinate
      */
     public double getX() {
         return x;
     }
 
     /**
-     * @param x The new X coordinate.
+     * Updates the horizontal position.
+     *
+     * @param x the new x-coordinate
      */
     public void setX(double x) {
         this.x = x;
     }
 
     /**
-     * @return The current Y coordinate.
+     * Returns the current vertical position.
+     *
+     * @return the y-coordinate
      */
     public double getY() {
         return y;
     }
 
     /**
-     * @param y The new Y coordinate.
+     * Updates the vertical position.
+     *
+     * @param y the new y-coordinate
      */
     public void setY(double y) {
         this.y = y;
     }
 
     /**
-     * @return The width of the object.
+     * Returns the width of the object.
+     *
+     * @return the object width
      */
     public int getWidth() {
         return width;
     }
 
     /**
-     * @return The height of the object.
+     * Returns the height of the object.
+     *
+     * @return the object height
      */
     public int getHeight() {
         return height;
     }
 
     /**
-     * Helper method for collision detection.
-     * Creates a Rectangle object based on current position and size.
-     * This is used by the Presenter to check for intersections.
-     * * @return A Rectangle representing the object's bounds.
+     * Returns the collision bounds of the object.
+     * <p>
+     * This method generates a rectangular bounding box based on the
+     * current position and dimensions. It is primarily used by
+     * collision detection systems to evaluate intersections
+     * between game entities.
+     * </p>
+     *
+     * @return a {@link Rectangle} representing the object's bounds
      */
     public Rectangle getBounds() {
-        return new Rectangle((int)x, (int)y, width, height);
+        return new Rectangle((int) x, (int) y, width, height);
     }
 }

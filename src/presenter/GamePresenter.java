@@ -14,52 +14,102 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Filename  : GamePresenter.java
- * Package   : presenter
- * Description:
- * The COMPLETE "Brain" of the application.
- * Updated Features:
- * 1. FIX: Obstacle Hitbox Offset Removed (Memperbaiki masalah tembus tembok).
- * 2. FIX: Gun Muzzle Offset (Peluru keluar dari posisi senjata yang benar).
+ * Acts as the central controller ("Brain") of the application, bridging the Model and View.
+ * <p>
+ * This class implements {@link KontrakPresenter} and {@link Runnable} to manage the game loop,
+ * game state updates, entity spawning, collision detection, and user input handling.
+ * </p>
+ *
+ * <p>
+ * Key Responsibilities:
+ * <ul>
+ *     <li><b>Game Loop:</b> Manages the main game loop thread with a fixed time step.</li>
+ *     <li><b>Entity Management:</b> Updates and renders Players, Aliens, Bullets, Obstacles, and PowerUps.</li>
+ *     <li><b>Collision Detection:</b> Handles interactions between game entities (e.g., bullets hitting aliens, player hitting obstacles).</li>
+ *     <li><b>Wave System:</b> Controls the progression of game waves and enemy spawning.</li>
+ *     <li><b>Data Persistence:</b> Communicates with {@link TabelBenefit} to save and load high scores.</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * <b>Recent Updates:</b>
+ * <ul>
+ *     <li>FIX: Obstacle Hitbox Offset Removed (Fixed wall clipping issue).</li>
+ *     <li>FIX: Gun Muzzle Offset (Bullet spawns from correct weapon position).</li>
+ * </ul>
+ * </p>
+ *
+ * @author Mochammad Azka Basria
  */
 public class GamePresenter implements KontrakPresenter, Runnable {
 
+    /** The view interface for rendering the game. */
     private KontrakView view;
 
-    // Data Models
+    // --- Data Models ---
+
+    /** The main player character. */
     private Player player;
+    /** Thread-safe list of active alien enemies. */
     private List<Alien> aliens;
+    /** Thread-safe list of active bullets. */
     private List<Bullet> bullets;
+    /** List of obstacles/walls in the current level. */
     private List<Obstacle> obstacles;
+    /** Thread-safe list of active power-ups. */
     private List<PowerUp> powerUps;
+    /** Database handling class for high scores. */
     private TabelBenefit tabelBenefit;
 
-    // Game State
+    // --- Game State ---
+
+    /** Flag indicating if the game loop is currently running. */
     private boolean isRunning = false;
+    /** The main thread running the game loop. */
     private Thread gameThread;
+    /** Random number generator for spawning and RNG logic. */
     private Random random = new Random();
+    /** Counter for bullets missed in the current session (used for stats). */
     private int missedBulletsSession = 0;
 
-    // --- WAVE SYSTEM STATES ---
+    // --- Wave System States ---
+
+    /** The current game wave number. */
     private int currentWave = 1;
+    /** Number of enemies left to spawn in the current wave. */
     private int enemiesToSpawnInWave = 0;
     private final int BASE_ENEMIES = 5;
     private final int WAVE_MULTIPLIER = 2;
 
-    // Player Identity
+    // --- Player Identity ---
+
+    /** Display name of the current player. */
     private String currentUsername = "Player";
 
-    // Constants
+    // --- Constants ---
+
     private final int WIDTH = 800;
     private final int HEIGHT = 600;
 
-    // Input States
+    // --- Input States ---
+
     private boolean isUp, isDown, isLeft, isRight;
     private boolean isMousePressed = false;
 
-    // Timers
+    // --- Timers ---
+
+    /** Timestamp of the last Assault Rifle shot to control fire rate. */
     private long lastArShotTime = 0;
 
+    /**
+     * Constructs a new {@code GamePresenter} with the specified view.
+     * <p>
+     * Initializes all game object lists (aliens, bullets, obstacles, etc.) and
+     * attempts to establish a connection to the database via {@link TabelBenefit}.
+     * </p>
+     *
+     * @param view the view interface for UI updates
+     */
     public GamePresenter(KontrakView view) {
         this.view = view;
         this.aliens = new CopyOnWriteArrayList<>();
@@ -75,6 +125,15 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     // --- MENU & DATA LOGIC ---
+
+    /**
+     * Loads high score data from the database and updates the view.
+     * <p>
+     * Retrieves player statistics including username, score, missed bullets, and
+     * remaining ammo from {@link TabelBenefit}, converting the result set into
+     * a format suitable for the view's table.
+     * </p>
+     */
     @Override
     public void loadData() {
         if (tabelBenefit == null) return;
@@ -97,6 +156,12 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Helper method to convert an ArrayList of Objects to a 2D Object array.
+     *
+     * @param list the list of row data
+     * @return a 2D array representation of the data
+     */
     private Object[][] convertListtoObject(ArrayList<Object[]> list){
         Object[][] data = new Object[list.size()][4];
         for(int i=0; i<list.size(); i++) data[i] = list.get(i);
@@ -104,6 +169,17 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     // --- GAME START LOGIC ---
+
+    /**
+     * Starts the game session for the specified user.
+     * <p>
+     * Resets game state, registers the player in the database (if connected),
+     * initializes the player entity, resets wave progress, generates the level,
+     * and starts the game loop thread.
+     * </p>
+     *
+     * @param username the name of the player
+     */
     @Override
     public void startGame(String username) {
         if (username == null || username.trim().isEmpty()) {
@@ -117,7 +193,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
             loadData();
         }
 
-        // Init Player di tengah layar
+        // Initialize Player at the center of the screen
         player = new Player(WIDTH / 2.0, HEIGHT / 2.0);
 
         int savedAmmo = 0;
@@ -151,11 +227,24 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         view.playSound("BGM");
     }
 
+    /**
+     * Prepares the next wave of enemies.
+     * <p>
+     * Calculates the number of enemies to spawn based on the current wave number.
+     * </p>
+     */
     private void startNextWave() {
         enemiesToSpawnInWave = BASE_ENEMIES + ((currentWave - 1) * WAVE_MULTIPLIER);
         System.out.println("Starting Wave " + currentWave + " with " + enemiesToSpawnInWave + " enemies.");
     }
 
+    /**
+     * Generates a random level layout by placing obstacles.
+     * <p>
+     * Places a set number of obstacles at random positions, ensuring they do not
+     * overlap with the player or each other.
+     * </p>
+     */
     private void generateLevel() {
         int maxObstacles = 6;
         int attempts = 0;
@@ -193,6 +282,14 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     // --- MAIN GAME LOOP ---
+
+    /**
+     * The main game loop driven by the thread.
+     * <p>
+     * Implements a fixed time-step loop (approx 60 ticks per second).
+     * Updates game logic and renders graphics each frame.
+     * </p>
+     */
     @Override
     public void run() {
         long lastTime = System.nanoTime();
@@ -218,6 +315,14 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Updates the game state for a single frame.
+     * <p>
+     * Handles player movement, weapon timers, entity spawning, and updates for
+     * all active game objects (Aliens, PowerUps, Bullets). Also handles automatic
+     * firing if the mouse is held down for auto-weapons.
+     * </p>
+     */
     @Override
     public void updateGame() {
         if (!isRunning) return;
@@ -240,6 +345,14 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     // --- SPAWNING LOGIC ---
+
+    /**
+     * Manages entity spawning logic.
+     * <p>
+     * Handles spawning of enemies (Aliens) based on wave progress and chance,
+     * as well as random PowerUp spawning. Checks for wave completion to advance.
+     * </p>
+     */
     private void spawnLogic() {
         if (enemiesToSpawnInWave <= 0 && aliens.isEmpty()) {
             currentWave++;
@@ -260,6 +373,13 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Spawns a single alien enemy at a random position outside the screen center.
+     * <p>
+     * Determines the alien type (Chaser/Zigzag) and loadout (Weapon) based on
+     * probability and current wave difficulty.
+     * </p>
+     */
     private void spawnOneAlien() {
         double angle = random.nextDouble() * 2 * Math.PI;
         double spawnRadius = 500;
@@ -295,13 +415,19 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     // --- UPDATES & PHYSICS ---
 
+    /**
+     * Updates all active PowerUps.
+     * <p>
+     * Handles expiration and collision with the player.
+     * </p>
+     */
     private void updatePowerUps() {
         for (PowerUp p : powerUps) {
             if (p.isExpired()) {
                 powerUps.remove(p);
                 continue;
             }
-            // Tabrakan PowerUp diperketat sedikit (inset 5 pixel)
+            // PowerUp collision tightened slightly (inset 5 pixel)
             Rectangle pRect = p.getBounds();
             Rectangle shrunkPowerUp = new Rectangle(pRect.x + 5, pRect.y + 5, pRect.width - 10, pRect.height - 10);
 
@@ -318,6 +444,13 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Updates all active Aliens.
+     * <p>
+     * Handles movement, screen boundary bouncing, obstacle collision,
+     * and shooting logic for each alien.
+     * </p>
+     */
     private void updateAliens() {
         for (Alien alien : aliens) {
             alien.setX(alien.getX() + alien.getVelX());
@@ -336,7 +469,7 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
             Rectangle alienRect = alien.getBounds();
             for (Obstacle obs : obstacles) {
-                // Gunakan Helper method untuk cek collision yang lebih presisi
+                // Use Helper method for more precise collision checking
                 if (checkRectCollision(alienRect, obs, 5)) {
                     alien.setVelX(alien.getVelX() * -1);
                     alien.setVelY(alien.getVelY() * -1);
@@ -347,6 +480,15 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Manages shooting behavior for an individual alien.
+     * <p>
+     * Handles burst firing for Assault Rifle aliens and single shots for others.
+     * Checks line of sight before firing.
+     * </p>
+     *
+     * @param alien the alien entity to update
+     */
     private void updateAlienShootingLogic(Alien alien) {
         long currentTime = System.currentTimeMillis();
 
@@ -388,10 +530,17 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Checks if there is a clear line of sight between an alien and the player.
+     *
+     * @param alien  the source alien
+     * @param player the target player
+     * @return {@code true} if no obstacles block the line of sight, {@code false} otherwise
+     */
     private boolean isLineOfSightClear(Alien alien, Player player) {
         Line2D line = new Line2D.Double(alien.getX()+30, alien.getY()+30, player.getX()+30, player.getY()+30);
         for (Obstacle obs : obstacles) {
-            // Kita pakai bounds yang diperkecil untuk Line of Sight juga
+            // We use shrunk bounds for Line of Sight as well
             Rectangle rect = obs.getBounds();
             Rectangle shrunk = new Rectangle(rect.x + 10, rect.y + 10, rect.width - 20, rect.height - 20);
             if (line.intersects(shrunk)) return false;
@@ -399,6 +548,14 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         return true;
     }
 
+    /**
+     * Executes a shot from an alien towards the player.
+     * <p>
+     * Calculates the trajectory and handles different weapon spread patterns (e.g. Shotgun).
+     * </p>
+     *
+     * @param alien the shooting alien
+     */
     private void shootFromAlien(Alien alien) {
         double dx = player.getX() - alien.getX();
         double dy = player.getY() - alien.getY();
@@ -431,6 +588,12 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Creates a single bullet from an alien with an Assault Rifle.
+     *
+     * @param alien the shooting alien
+     * @param angle the base angle of the shot
+     */
     private void createArBullet(Alien alien, double angle) {
         double jitter = Math.toRadians((random.nextDouble()*6)-3);
         double a = angle + jitter;
@@ -444,6 +607,13 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         view.playSound("SHOOT_ENEMY");
     }
 
+    /**
+     * Updates all active bullets.
+     * <p>
+     * Handles bullet movement, boundary checks (removing off-screen bullets),
+     * and collision detection with entities or obstacles.
+     * </p>
+     */
     private void updateBullets() {
         for (Bullet b : bullets) {
             b.update();
@@ -457,6 +627,11 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Checks collisions for a specific bullet against obstacles and entities.
+     *
+     * @param b the bullet to check
+     */
     private void checkCollisionSafe(Bullet b) {
         Rectangle br = b.getBounds();
 
@@ -487,12 +662,25 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Handles logic for when a player's bullet misses.
+     * <p>
+     * Increments the missed bullet session counter (for stats) and
+     * potentially adds default ammo back (game mechanic).
+     * </p>
+     */
     private void handleMissedBullet() {
         missedBulletsSession++;
         player.setAmmo(player.getAmmo() + 1);
         view.playSound("RELOAD");
     }
 
+    /**
+     * Ends the game session.
+     * <p>
+     * Stops the game loop, saves game data to the database, and displays the Game Over screen.
+     * </p>
+     */
     private void gameOver() {
         isRunning = false;
         view.playSound("GAMEOVER");
@@ -504,6 +692,12 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     // --- PLAYER INPUT & MOVEMENT ---
 
+    /**
+     * Handles player movement logic based on current input states (isUp, isDown, etc.).
+     * <p>
+     * Calculates next position and checks for collisions before applying movement.
+     * </p>
+     */
     private void handlePlayerMovement() {
         double speed = player.getSpeed();
         double nextX = player.getX();
@@ -520,19 +714,24 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     /**
-     * PERBAIKAN 1: FIX OFFSET HITBOX
-     * Sebelumnya ada '+ 15' yang membuat hitbox bergeser ke kanan bawah,
-     * sehingga sisi kiri player bisa menembus tembok.
-     * Sekarang kita gunakan 'x' dan 'y' murni karena hitbox (30x30)
-     * sudah otomatis di-center oleh renderer visual (60x60).
+     * Checks if the player would collide with any obstacles at the given position.
+     * <p>
+     * PERBAIKAN 1: FIX OFFSET HITBOX.
+     * Uses coordinates as the top-left of the 30x30 hitbox without additional offset,
+     * fixing previous issues where the player could clip through walls.
+     * </p>
+     *
+     * @param x the potential X coordinate
+     * @param y the potential Y coordinate
+     * @return {@code true} if a collision occurs, {@code false} otherwise
      */
     private boolean checkPlayerCollision(double x, double y) {
-        // Gunakan posisi asli (tanpa +15) karena Player.java sudah mendefinisikan
-        // x,y sebagai titik kiri-atas dari hitbox 30x30.
+        // Use original position (without +15) because Player.java already defines
+        // x,y as top-left point of 30x30 hitbox.
         Rectangle pRect = new Rectangle((int)x, (int)y, 30, 30);
 
         for (Obstacle obs : obstacles) {
-            // Gunakan padding 10 pixel agar visual bisa sedikit overlap tembok (agar tidak kaku)
+            // Use 10 pixel padding so visual can slightly overlap wall (to be less rigid)
             if (checkRectCollision(pRect, obs, 10)) {
                 return true;
             }
@@ -540,6 +739,14 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         return false;
     }
 
+    /**
+     * Generic wrapper to check collision between an entity rectangle and an obstacle.
+     *
+     * @param entityRect the bounding box of the entity
+     * @param obs        the obstacle to check against
+     * @param padding    padding to shrink the obstacle's effective hitbox (makes movement smoother)
+     * @return {@code true} if they intersect
+     */
     private boolean checkRectCollision(Rectangle entityRect, Obstacle obs, int padding) {
         Rectangle original = obs.getBounds();
         Rectangle tighterBox = new Rectangle(
@@ -551,15 +758,24 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         return entityRect.intersects(tighterBox);
     }
 
+    /**
+     * Updates player movement flags based on user input.
+     */
     @Override
     public void movePlayer(boolean up, boolean down, boolean left, boolean right) {
         this.isUp = up; this.isDown = down; this.isLeft = left; this.isRight = right;
     }
 
+    /**
+     * Updates the player's rotation to face the mouse cursor.
+     *
+     * @param mouseX the X coordinate of the mouse
+     * @param mouseY the Y coordinate of the mouse
+     */
     @Override
     public void rotatePlayer(int mouseX, int mouseY) {
         if (!isRunning) return;
-        // Pusat player untuk kalkulasi sudut (+30 karena hitbox visual 60)
+        // Player center for angle calculation (+30 because visual hitbox is 60)
         double dx = mouseX - (player.getX() + 30);
         double dy = mouseY - (player.getY() + 30);
         player.setRotation(Math.atan2(dy, dx));
@@ -567,6 +783,9 @@ public class GamePresenter implements KontrakPresenter, Runnable {
 
     // --- PLAYER SHOOTING HANDLING ---
 
+    /**
+     * Initiates shooting or sets the flag for continuous firing.
+     */
     public void startShooting() {
         if (!isRunning) return;
         isMousePressed = true;
@@ -576,30 +795,43 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Stops user-initiated shooting.
+     */
     public void stopShooting() {
         isMousePressed = false;
     }
 
+    /**
+     * Placeholder for interface requirement.
+     * Actual shooting logic is handled via {@link #startShooting()} and Internal update loops.
+     */
     @Override public void shoot() {}
 
     /**
-     * PERBAIKAN 2: GUN OFFSET
-     * Menghitung posisi spawn peluru agar keluar dari moncong senjata (kanan).
+     * Calculates the exact position of the gun muzzle for bullet spawning.
+     * <p>
+     * PERBAIKAN 2: GUN OFFSET.
+     * Computes the spawn point based on player rotation to ensure bullets
+     * appear to come from the weapon (right side) rather than the center of the body.
+     * </p>
+     *
+     * @return a {@link Point2D.Double} representing the muzzle coordinates
      */
     private Point2D.Double getGunMuzzlePosition() {
         double angle = player.getRotation();
 
-        // Pusat Player (Visual)
+        // Player Center (Visual)
         double centerX = player.getX() + 30;
         double centerY = player.getY() + 30;
 
-        // OFFSET SETTING (Sesuaikan angka ini agar pas dengan gambar)
-        double forwardOffset = 25.0; // Jarak moncong ke depan dari pusat
-        double rightOffset = 18.0;   // Jarak moncong ke kanan dari pusat (tangan kanan)
+        // OFFSET SETTING (Adjust these numbers to match the image)
+        double forwardOffset = 25.0; // Muzzle forward distance from center
+        double rightOffset = 18.0;   // Muzzle right distance from center (right hand)
 
-        // Rumus Rotasi Vektor:
-        // SpawnX = PusatX + (Maju * cos) + (Kanan * cos(90+sudut))
-        // SpawnY = PusatY + (Maju * sin) + (Kanan * sin(90+sudut))
+        // Vector Rotation Formula:
+        // SpawnX = CenterX + (Forward * cos) + (Right * cos(90+angle))
+        // SpawnY = CenterY + (Forward * sin) + (Right * sin(90+angle))
         // cos(90+a) = -sin(a), sin(90+a) = cos(a)
 
         double spawnX = centerX + (forwardOffset * Math.cos(angle)) - (rightOffset * Math.sin(angle));
@@ -608,9 +840,16 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         return new Point2D.Double(spawnX, spawnY);
     }
 
+    /**
+     * Fires the player's current weapon.
+     * <p>
+     * Handles different weapon types (Shotgun, Assault Rifle, Pistol),
+     * ammo consumption, spread/jitter, and sound effects.
+     * </p>
+     */
     private void fireWeapon() {
         Player.WeaponType weapon = player.getCurrentWeapon();
-        Point2D.Double muzzle = getGunMuzzlePosition(); // Ambil posisi spawn yang sudah dikoreksi
+        Point2D.Double muzzle = getGunMuzzlePosition(); // Get the corrected spawn position
 
         if (weapon == Player.WeaponType.SHOTGUN) {
             if (player.getAmmo() >= 5) {
@@ -651,6 +890,9 @@ public class GamePresenter implements KontrakPresenter, Runnable {
         }
     }
 
+    /**
+     * Fires the default pistol weapon.
+     */
     private void fireDefaultBullet() {
         Point2D.Double muzzle = getGunMuzzlePosition();
         double a = player.getRotation();
@@ -663,8 +905,17 @@ public class GamePresenter implements KontrakPresenter, Runnable {
     }
 
     // --- GETTERS ---
+
+    /**
+     * Overload of {@link #startGame(String)} that defaults to "Player".
+     */
     @Override public void startGame() { startGame("Player"); }
     @Override public int getScore() { return player.getScore(); }
     @Override public int getAmmo() { return player.getAmmo(); }
+
+    /**
+     * Gets the current wave number.
+     * @return current wave
+     */
     public int getWave() { return currentWave; }
 }

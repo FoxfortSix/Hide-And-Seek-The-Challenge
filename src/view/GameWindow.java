@@ -13,6 +13,20 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.ArrayList;
 
+/**
+ * Filename  : GameWindow.java
+ * Package   : view
+ * Description:
+ * The main Swing GUI window for the application.
+ * <p>
+ * Implements {@link KontrakView} to handle View logic.
+ * Contains both the Menu Panel and the Game Panel (using CardLayout).
+ * Handles user input (Keyboard/Mouse) and delegates it to the Presenter.
+ * </p>
+ *
+ * @author Mochammad Azka Basria
+ * @version 1.0
+ */
 public class GameWindow extends JFrame implements KontrakView, KeyListener, MouseListener, MouseMotionListener {
 
     private GamePresenter presenter;
@@ -43,6 +57,9 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
     // Input States
     private boolean up, down, left, right;
 
+    /**
+     * Constructs the main game window, initializing the UI and resources.
+     */
     public GameWindow() {
         setTitle("Hide and Seek: Metal Slug Edition");
         setSize(800, 600);
@@ -78,6 +95,9 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
         setVisible(true);
     }
 
+    /**
+     * Sets up the Main Menu UI panel.
+     */
     private void setupMenuPanel() {
         menuPanel = new JPanel(new BorderLayout());
 
@@ -120,6 +140,9 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
         menuPanel.add(bottomPanel, BorderLayout.SOUTH);
     }
 
+    /**
+     * Initializes sound resources via SoundManager.
+     */
     private void initSounds() {
         soundManager = new SoundManager();
         soundManager.loadSound("BGM", "assets/bgm.wav");
@@ -127,6 +150,9 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
         soundManager.loadSound("SHOOT_ENEMY", "assets/enemyshoot.wav");
     }
 
+    /**
+     * Initializes image resources via ImageManager.
+     */
     private void initImages() {
         imageManager = new ImageManager();
 
@@ -208,10 +234,14 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
     }
 
     // --- GAME PANEL (RENDERING ENGINE) ---
+
+    /**
+     * Inner class responsible for custom painting (Rendering Loop).
+     */
     private class GamePanel extends JPanel {
 
         private final double BASE_SCALE = 2.5;
-        private final double BULLET_SCALE = 1.5; // Skala khusus bullet agar terlihat jelas
+        private final double BULLET_SCALE = 1.5; // Custom bullet scale for visibility
 
         @Override
         protected void paintComponent(Graphics g) {
@@ -264,15 +294,15 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
                 if (bImg != null) {
                     AffineTransform old = g2d.getTransform();
 
-                    // Hitung pusat bullet
+                    // Calculate bullet center
                     double cx = b.getX() + b.getWidth() / 2.0;
                     double cy = b.getY() + b.getHeight() / 2.0;
 
                     g2d.translate(cx, cy);
-                    g2d.rotate(b.getRotation()); // Rotasi sesuai arah gerak
+                    g2d.rotate(b.getRotation()); // Rotate according to movement direction
                     g2d.translate(-cx, -cy);
 
-                    // Gambar dengan skala
+                    // Draw with scale
                     int dw = (int)(b.getWidth() * BULLET_SCALE);
                     int dh = (int)(b.getHeight() * BULLET_SCALE);
                     int dx = (int)(b.getX() - (dw - b.getWidth()) / 2);
@@ -281,7 +311,7 @@ public class GameWindow extends JFrame implements KontrakView, KeyListener, Mous
                     g2d.drawImage(bImg, dx, dy, dw, dh, null);
                     g2d.setTransform(old);
                 } else {
-                    // Fallback jika gambar null
+                    // Fallback if image is null
                     g2d.setColor(b.getColor());
                     g2d.fillOval((int)b.getX(), (int)b.getY(), b.getWidth(), b.getHeight());
                 }
